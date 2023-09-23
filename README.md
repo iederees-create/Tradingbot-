@@ -46,13 +46,29 @@ If you're new to trading, follow these steps to get started:
 
 4. Configure the RSI and stop loss settings as per your trading strategy.
 
-### Step 5: Start Trading
+### Step 5: Create a Custom Indicator
 
-1. Once configured, AutoTrader.mq5 will execute buy and sell orders automatically based on RSI signals.
+To create a custom indicator on MetaTrader 5 (MT5) like the one used in AutoTrader.mq5, follow these steps:
 
-2. Monitor your trades using the MetaTrader 5 interface.
+1. Open MetaEditor: Launch MetaEditor, the integrated development environment for MT5.
 
-3. Keep an eye on your account balance and trading performance.
+2. Create a New Indicator: In MetaEditor, go to `File > New > Indicator`. This will open a new script template.
+
+3. Replace the Template with the code in the script file in this repository: Delete the default code in the new indicator file and paste the code you provided into the file.
+
+4. Compile the Indicator: Save the file with a name, such as "CustomRSIIndicator.mq5". Then, click the "Compile" button in MetaEditor to compile the code. Make sure there are no compilation errors.
+
+5. Check for Errors: Review the "Errors" and "Journal" tabs in MetaEditor to ensure there are no errors or warnings during compilation. Fix any issues that may arise.
+
+6. Deploy the Indicator: Once the code compiles successfully, you can deploy the indicator to your MT5 platform. To do this, locate the compiled .ex5 file in the "MQL5\Indicators" folder within your MetaTrader directory. It should have the same name as your script (e.g., "CustomRSIIndicator.ex5").
+
+7. Add the Indicator to a Chart: In MetaTrader 5, open the chart for the "Volatility 75 1s" symbol. Right-click on the chart, select "Indicators," and then choose "Custom." You should see your custom RSI indicator in the list of available indicators. Select it and configure any input parameters as needed.
+
+8. Apply the Indicator: Click "OK" to apply the custom indicator to your chart. The indicator will now display RSI-based buy and sell signals.
+
+### Step 6: Start Trading
+
+Once configured, AutoTrader.mq5 will execute buy and sell orders automatically based on RSI signals. Monitor your trades using the MetaTrader 5 interface. Keep an eye on your account balance and trading performance.
 
 If you have any questions or need assistance with setting up AutoTrader.mq5, don't hesitate to reach out to [Iederees Francis](https://www.linkedin.com/in/iederees-francis-150b35124/) on LinkedIn.
 
