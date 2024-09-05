@@ -1,0 +1,255 @@
+// This bot was created to run on this broker on the 5 min time frame on the chart vol 75 1s https://track.deriv.com/_KCH6LP9EQxwpl7dR3lTXiGNd7ZgqdRLk/1/ +------------------------------------------------------------------+
+//|                                                   AutoTrader.mq5 |
+//|                                   Copyright 2023, Iederees Francis | if you run this script by law im entitled to 40% of your profits 
+//|                                                                  |
+//+------------------------------------------------------------------+
+#property copyright "Copyright 2023, Iederees Francis"
+#property link      ""
+#property version   "1.00"
+#property strict
+//+------------------------------------------------------------------+
+//| Expert initialization function                                   |
+//+------------------------------------------------------------------+
+
+#include <Trade\Trade.mqh>
+#include <Trade\PositionInfo.mqh>
+
+int pos=0;
+int myRSIDefinition;
+
+CTrade Trade; // To send orders and close positions
+CPositionInfo positionInfo; // to get info about current positions
+
+input int InpStopLossPips     = 1000; // Stop Loss in pips
+input int InpTakeProfitPips   = 25000; // Take Profit in pips
+
+double pipCount = 0;
+double profitLoss = 0;
+int totalPositions = 0;
+
+int OnInit()
+  {
+  // Define the handler once at EA Init, not every tick
+   myRSIDefinition=iRSI(Symbol(),Period(),14,PRICE_CLOSE);
+// If it is not possible to get the indicator handler, print some error information and return with error code
+   if(myRSIDefinition==INVALID_HANDLE)
+     {
+      Print("There was an error creating RSI handler!");
+      return(INIT_FAILED);
+     }
+   return INIT_SUCCEEDED;
+//--- create timer
+  // EventSetTimer(60);
+   
+//---
+   return(INIT_SUCCEEDED);
+  }
+//+------------------------------------------------------------------+
+//| Expert deinitialization function                                 |
+//+------------------------------------------------------------------+
+void OnDeinit(const int reason)
+  {
+//--- destroy timer
+  // EventKillTimer();
+   
+  }
+//+------------------------------------------------------------------+
+//| Expert tick function                                             |
+//+------------------------------------------------------------------+
+void OnTick()
+  {
+    string signal="";
+   double  Ask=NormalizeDouble(SymbolInfoDouble(Symbol(),SYMBOL_ASK),Digits());
+   double  Bid=NormalizeDouble(SymbolInfoDouble(Symbol(),SYMBOL_BID),Digits());
+   double myRSIArray[];
+   ArraySetAsSeries(myRSIArray,true);
+   CopyBuffer(myRSIDefinition,0,0,3,myRSIArray);
+   double myRSIValue=NormalizeDouble(myRSIArray[0],2);
+   if(myRSIValue >= 10 && myRSIValue <= 15)
+    signal = "buy";
+if(myRSIValue >= 75 && myRSIValue <= 80)
+    signal = "sell";
+
+   totalPositions = PositionsTotal();
+   pipCount = 0;
+   profitLoss = 0;
+
+   if(signal=="buy" && totalPositions < 1)
+     {
+      //First close all Sell positions
+      for(pos=0; pos<totalPositions; pos++)
+        {
+         //Select the position to load info
+         if(positionInfo.SelectByIndex(pos))
+           {
+            // Get the position type, if sell then close it
+            if(positionInfo.PositionType()==POSITION_TYPE_SELL)
+              {
+               Trade.PositionClose(positionInfo.Ticket());
+              }
+           }
+        }
+      // Calculate SL and TP in terms of pips
+      double pipSize = SymbolInfoDouble(Symbol(), SYMBOL_POINT);
+      double stopLoss = Bid - InpStopLossPips * pipSize;
+      double takeProfit = Bid + InpTakeProfitPips * pipSize;
+      
+      stopLoss = NormalizeDouble(stopLoss, (int)SymbolInfoInteger(Symbol(), SYMBOL_DIGITS));
+      takeProfit = NormalizeDouble(takeProfit, (int)SymbolInfoInteger(Symbol(), SYMBOL_DIGITS));
+      
+      // Open Buy position with SL and TP
+      Trade.Buy(0.300, Symbol(), 0, stopLoss, takeProfit);
+      Comment ("The current signal is: ",signal);
+     }
+
+   if(signal=="sell" && totalPositions < 1)
+     {
+      //First close all Buy positions
+      for(pos=0; pos<totalPositions; pos++)
+        {
+         //Select the position to load info
+         if(positionInfo.SelectByIndex(pos))
+           {
+            // Get the position type, if buy then close it
+            if(positionInfo.PositionType()==POSITION_TYPE_BUY)
+              {
+               Trade.PositionClose(positionInfo.Ticket());
+              }
+           }
+        }
+      // Calculate SL and TP in terms of pips
+      double pipSize = SymbolInfoDouble(Symbol(), SYMBOL_POINT);
+      double stopLoss = Ask + InpStopLossPips * pipSize;
+      double takeProfit = Ask - InpTakeProfitPips * pipSize;
+      
+      stopLoss = NormalizeDouble(stopLoss, (int)SymbolInfoInteger(Symbol(), SYMBOL_DIGITS));
+      takeProfit = NormalizeDouble(takeProfit, (int)SymbolInfoInteger(Symbol(), SYMBOL_DIGITS));
+      
+      // Open Sell position with SL and TP
+      Trade.Sell(0.300, Symbol(), 0, stopLoss, takeProfit);
+      Comment ("The current signal is: ",signal);
+     }
+
+//--- AUTO STOPLOSS AND TAKE PROFIT
+   datetime checkTime   =  TimeCurrent()-30;   //Only Looking at trades in last 30 Seconds
+   int      cnt         =  PositionsTotal();                   // This won't see limit and stop orders
+   for (int i=cnt-1; i>=0; i--) {
+      ulong ticket   =  PositionGetTicket(i);
+      if (ticket>0) {
+         double openPrice = PositionGetDouble(POSITION_PRICE_OPEN);
+         double currentPrice = (PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_BUY) ? Bid : Ask;
+         pipCount += (PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_BUY) ? 
+                     (currentPrice - openPrice) / SymbolInfoDouble(Symbol(), SYMBOL_POINT) : 
+                     (openPrice - currentPrice) / SymbolInfoDouble(Symbol(), SYMBOL_POINT);
+         profitLoss += PositionGetDouble(POSITION_PROFIT);
+         if (PositionGetInteger(POSITION_MAGIC)==0 && (PositionGetDouble(POSITION_SL)==0 || PositionGetDouble(POSITION_TP)==0)) {
+                     // magic 0 = manual entry, sl or tp 0 means not set
+            if (PositionGetInteger(POSITION_TIME)>checkTime) {             // lets you override after 30 seconds
+               string   symbol         =  PositionGetString(POSITION_SYMBOL);
+               double   pipSize        =  SymbolInfoDouble(symbol, SYMBOL_POINT);
+               double   stopLoss       =  InpStopLossPips * pipSize;
+               double   takeProfit     =  InpTakeProfitPips * pipSize;
+               double   stopLossPrice  =  (PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_BUY) ?
+                                          PositionGetDouble(POSITION_PRICE_OPEN) - stopLoss :
+                                          PositionGetDouble(POSITION_PRICE_OPEN) + stopLoss;
+               double   takeProfitPrice = (PositionGetInteger(POSITION_TYPE)==POSITION_TYPE_BUY) ?
+                                          PositionGetDouble(POSITION_PRICE_OPEN) + takeProfit :
+                                          PositionGetDouble(POSITION_PRICE_OPEN) - takeProfit;
+               stopLossPrice           =  NormalizeDouble(stopLossPrice, (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS));
+               takeProfitPrice         =  NormalizeDouble(takeProfitPrice, (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS));
+               Trade.PositionModify(ticket, stopLossPrice, takeProfitPrice);
+            }
+         }
+      } 
+   }
+   
+   //--- Update the UI with the collected data
+   Comment(
+       "Pip Count: ", pipCount, "\n",
+       "Total Profit/Loss: ", profitLoss, "\n",
+       "Total Positions: ", totalPositions, "\n",
+       "Signal: ", signal
+   );
+  }
+//+------------------------------------------------------------------+
+//| Timer function                                                   |
+//+------------------------------------------------------------------+
+void OnTimer()
+  {
+//---
+   
+  }
+//+------------------------------------------------------------------+
+//| Trade function                                                   |
+//+------------------------------------------------------------------+
+void OnTrade()
+  {
+//---
+   
+  }
+//+------------------------------------------------------------------+
+//| TradeTransaction function                                        |
+//+------------------------------------------------------------------+
+void OnTradeTransaction(const MqlTradeTransaction& trans,
+                        const MqlTradeRequest& request,
+                        const MqlTradeResult& result)
+  {
+//---
+   
+  }
+//+------------------------------------------------------------------+
+//| Tester function                                                  |
+//+------------------------------------------------------------------+
+double OnTester()
+  {
+//---
+   double ret=0.0;
+//---
+
+//---
+   return(ret);
+  }
+//+------------------------------------------------------------------+
+//| TesterInit function                                              |
+//+------------------------------------------------------------------+
+void OnTesterInit()
+  {
+//---
+   
+  }
+//+------------------------------------------------------------------+
+//| TesterPass function                                              |
+//+------------------------------------------------------------------+
+void OnTesterPass()
+  {
+//---
+   
+  }
+//+------------------------------------------------------------------+
+//| TesterDeinit function                                            |
+//+------------------------------------------------------------------+
+void OnTesterDeinit()
+  {
+//---
+   
+  }
+//+------------------------------------------------------------------+
+//| ChartEvent function                                              |
+//+------------------------------------------------------------------+
+void OnChartEvent(const int id,
+                  const long &lparam,
+                  const double &dparam,
+                  const string &sparam)
+  {
+//---
+   
+  }
+//+------------------------------------------------------------------+
+//| BookEvent function                                               |
+//+------------------------------------------------------------------+
+void OnBookEvent(const string &symbol)
+  {
+//---
+   
+  }
+//+------------------------------------------------------------------+
